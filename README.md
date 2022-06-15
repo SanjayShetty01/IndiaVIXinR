@@ -1,1 +1,1 @@
-/home/sanjayashetty/Personal not your Shit/Projects/GithubStuff/IndiaVIXinR/IndiaVix.md
+IndiaVix.md
