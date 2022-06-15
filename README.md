@@ -1,2 +1,1 @@
-# IndiaVIXinR
-Implementing India Vix in R 
+/home/sanjayashetty/Personal not your Shit/Projects/GithubStuff/IndiaVIXinR/IndiaVix.md
