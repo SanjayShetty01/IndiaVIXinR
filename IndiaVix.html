@@ -370,9 +370,52 @@ pre code {
 </div>
 
 
-<pre class="r"><code>library(dplyr)</code></pre>
-<p>calculating India Vix from scratch using R.</p>
-<pre class="r"><code># Cleaning the data
+<div id="calculating-india-vix-from-scratch-using-r." class="section level3">
+<h3>calculating India Vix from scratch using R.</h3>
+<p>We would be refering the <a href="https://www1.nseindia.com/content/indices/white_paper_IndiaVIX.pdf">NSE
+Website</a> for calculating the India Vix Index.</p>
+<p>The formula for calculating the Expected Volatility:</p>
+<p><span class="math display">\[\sigma^2 = \frac{2}{T} \sum \frac{\Delta
+K_i} {K_i^2} e^{RT} Q(K_i) - \frac{1} {T}[\frac{F} {K_0} -
+1]^2\]</span></p>
+<p><span class="math inline">\(\sigma^2\)</span> -&gt; Expected
+Volatility</p>
+<p><span class="math inline">\(T\)</span> -&gt; Time to expiry</p>
+<p><span class="math inline">\(T\)</span> -&gt; <span class="math inline">\(\frac{M_{current day} +M_{settlement day} +
+M_{other day}}{M_{year}}\)</span></p>
+<p><span class="math inline">\(M_{current day}\)</span> -&gt; number of
+minutes remaining till midnight on the current day</p>
+<p><span class="math inline">\(M_{settlement day}\)</span> -&gt; Number
+of minutes from midnight until closing hours of trading on expiry
+day</p>
+<p><span class="math inline">\(M_{other day}\)</span> -&gt; Total number
+of minutes in the days between current day and expiry day excluding both
+the days</p>
+<p><span class="math inline">\(M_{year}\)</span> -&gt; number of minutes
+in a year</p>
+<p><span class="math inline">\(K_i\)</span> -&gt; Strike price of <span class="math inline">\(i^{th}\)</span> out-of-the-money option; a call if
+<span class="math inline">\(K_i &gt; F\)</span> and a put if <span class="math inline">\(K_i &lt; F\)</span></p>
+<p><span class="math inline">\(\Delta K_i\)</span> -&gt; Interval
+between strike prices- half the distance between the strike on either
+side of <span class="math inline">\(K_i\)</span>:</p>
+<p><span class="math display">\[\Delta K_i = \frac{K_{i+1} - K_{i-1}}{2}
+\]</span></p>
+<p><span class="math inline">\(R\)</span> -&gt; Risk-free interest rate
+to expiration (we will use MIBOR)</p>
+<p><span class="math inline">\(Q(K_i)\)</span> -&gt; Midpoint of the bid
+ask quote for each option contract with strike <span class="math inline">\(K_i\)</span></p>
+<p><span class="math inline">\(F\)</span> -&gt; NIFTY50 Futures
+prices</p>
+<p><span class="math inline">\(K_0\)</span> -&gt; First strike below the
+forward index level, F</p>
+<pre class="r"><code># loading the necessary libraries
+
+library(dplyr)</code></pre>
+<p>Let’s start by creating functions to help to get the necessary
+results. The options chain data is downloaded from the NSE website <a href="https://www.nseindia.com/option-chain">NSE Options Chain</a></p>
+<p>The required columns for the analysis are</p>
+<p>Strike | Call Bid | Call Ask | Put Ask | Put Bid</p>
+<pre class="r"><code># function to get the necessary columns. 
 
 cleaningData = function(data){
   reqCol = c(&#39;BID.PRICE&#39;, &#39;STRIKE.PRICE&#39;,&#39;ASK.PRICE&#39;)
@@ -381,7 +424,10 @@ cleaningData = function(data){
   
   return(data)
 }</code></pre>
+<p>Since the prices are character with commas, we need to convert it to
+numeric form for further calculation.</p>
 <pre class="r"><code># Converting all the string character to numeric 
+
 numConverer = function(data){
   
   data = lapply(data, readr::parse_number)
@@ -389,6 +435,8 @@ numConverer = function(data){
   
   return(as.data.frame(data))
 }</code></pre>
+<div id="functions-to-calculate-mid-quote-of-all-strike-prices." class="section level4">
+<h4>Functions to calculate mid-quote of all strike prices.</h4>
 <pre class="r"><code># Getting the mid-quote
 
 midQuote &lt;-  function(data, ATMOptionPrice){
@@ -419,15 +467,19 @@ midQuote &lt;-  function(data, ATMOptionPrice){
                         if_else(is.na(data$putSpread) | data$putSpread &gt; 30,
                                 data$putSpline, data$putMid), 0)
   
+  # extracting the midpoints of OTM options
   data$midPoint = if_else(data$callMid == 0, data$putMid, data$callMid)
 
-    
+  # midpoint for the ATM option will be the average between call and options mid quote  
   num = which(data$strike == ATMOptionPrice)
   data$midPoint[num] = (data$putMid[num] + data$callMid[num])/2
   
   
   return(data)
 }</code></pre>
+</div>
+<div id="calculating-sigma-square-expected-volatility" class="section level4">
+<h4>Calculating sigma square (Expected Volatility)</h4>
 <pre class="r"><code>sigmaSqCalc = function(data,r, F,t,ATMOptionPrice){
 
   # Calculating sigma square.
@@ -449,6 +501,9 @@ midQuote &lt;-  function(data, ATMOptionPrice){
 
 return(sigma)
 }</code></pre>
+</div>
+<div id="getting-the-sigma-value-for-the-near-month-options" class="section level4">
+<h4>Getting the sigma value for the near month options</h4>
 <pre class="r"><code># Current Month Calculations
 
 nearMonth = read.csv(&#39;data/option-chain-ED-NIFTY-30-Jun-2022.csv&#39;,  skip = 1)
@@ -476,6 +531,9 @@ nearMonthSigma = nearMonth %&gt;%
                   numConverer() %&gt;%
                   midQuote(.,ATMOptionPrice1) %&gt;%
                   sigmaSqCalc(., r1, F1, t1, ATMOptionPrice1)</code></pre>
+</div>
+<div id="getting-the-sigma-value-for-the-next-month-options" class="section level4">
+<h4>Getting the sigma value for the next month options</h4>
 <pre class="r"><code># Next Month Calculations
 
 nextMonth = read.csv(&#39;data/option-chain-ED-NIFTY-28-Jul-2022.csv&#39;, skip = 1)
@@ -503,6 +561,23 @@ nextMonthSigma = nextMonth %&gt;%
                   numConverer() %&gt;%
                   midQuote(.,ATMOptionPrice1) %&gt;%
                   sigmaSqCalc(., r2, F2, t2, ATMOptionPrice2)</code></pre>
+</div>
+<div id="calculating-indiavix." class="section level4">
+<h4>Calculating INDIAVIX.</h4>
+<p>Formula calculating INDIAVIX using Volatilities</p>
+<p><span class="math display">\[\sigma = \sqrt{\{T_1
+\sigma_1^2\}[\frac{N_{T_2} - N_{30}]}{N_{T_2} -N_{T_1}} +\frac{N_{30} -
+N_{T_1}]}{N_{T_2} -N_{T_1}} \times \frac{N_{365}}{N_{30}}} \]</span></p>
+<p><span class="math inline">\(N_{T_1}\)</span> -&gt; number of minutes
+to expiration of the near month options</p>
+<p><span class="math inline">\(N_{T_2}\)</span> -&gt; number of minutes
+to expiration of the next month options</p>
+<p><span class="math inline">\(N_{30}\)</span> -&gt; number of minutes
+in 30 days) =43200</p>
+<p><span class="math inline">\(N_{365}\)</span> -&gt; number of minutes
+in a 365-day year</p>
+<p><span class="math inline">\(\sigma -&gt;
+\frac{INDIAVIX}{100}\)</span></p>
 <pre class="r"><code>#Calculating IndiaVix
 
 N30 = 43200
@@ -517,6 +592,8 @@ IndiaVix = sqrt(term*(N1Yr/N30))
 
 sprintf(&#39;The India VIX on JUNE 15 2022 is %.2f&#39;, IndiaVix*100)</code></pre>
 <pre><code>## [1] &quot;The India VIX on JUNE 15 2022 is 21.99&quot;</code></pre>
+</div>
+</div>
 
 
 

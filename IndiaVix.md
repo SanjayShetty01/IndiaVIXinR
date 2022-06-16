@@ -7,15 +7,58 @@ output:
     keep_md: yes
 ---
 
+### calculating India Vix from scratch using R.
+
+We would be refering the [NSE Website](https://www1.nseindia.com/content/indices/white_paper_IndiaVIX.pdf) for calculating the India Vix Index.
+
+The formula for calculating the Expected Volatility:
+
+$$\sigma^2 = \frac{2}{T} \sum \frac{\Delta K_i} {K_i^2} e^{RT} Q(K_i) - \frac{1} {T}[\frac{F} {K_0} - 1]^2$$
+
+$\sigma^2$ -\> Expected Volatility
+
+$T$ -\> Time to expiry
+
+$T$ -\> $\frac{M_{current day} +M_{settlement day} + M_{other day}}{M_{year}}$
+
+$M_{current day}$ -\> number of minutes remaining till midnight on the current day
+
+$M_{settlement day}$ -\> Number of minutes from midnight until closing hours of trading on expiry day
+
+$M_{other day}$ -\> Total number of minutes in the days between current day and expiry day excluding both the days
+
+$M_{year}$ -\> number of minutes in a year
+
+$K_i$ -\> Strike price of $i^{th}$ out-of-the-money option; a call if $K_i > F$ and a put if $K_i < F$
+
+$\Delta K_i$ -\> Interval between strike prices- half the distance between the strike on either side of $K_i$:
+
+$$\Delta K_i = \frac{K_{i+1} - K_{i-1}}{2} $$
+
+$R$ -\> Risk-free interest rate to expiration (we will use MIBOR)
+
+$Q(K_i)$ -\> Midpoint of the bid ask quote for each option contract with strike $K_i$
+
+$F$ -\> NIFTY50 Futures prices
+
+$K_0$ -\> First strike below the forward index level, F
+
 
 ```r
+# loading the necessary libraries
+
 library(dplyr)
 ```
 
-calculating India Vix from scratch using R. 
+Let's start by creating functions to help to get the necessary results. The options chain data is downloaded from the NSE website [NSE Options Chain](https://www.nseindia.com/option-chain)
+
+The required columns for the analysis are
+
+Strike \| Call Bid \| Call Ask \| Put Ask \| Put Bid
+
 
 ```r
-# Cleaning the data
+# function to get the necessary columns. 
 
 cleaningData = function(data){
   reqCol = c('BID.PRICE', 'STRIKE.PRICE','ASK.PRICE')
@@ -26,10 +69,12 @@ cleaningData = function(data){
 }
 ```
 
+Since the prices are character with commas, we need to convert it to numeric form for further calculation.
 
 
 ```r
 # Converting all the string character to numeric 
+
 numConverer = function(data){
   
   data = lapply(data, readr::parse_number)
@@ -38,6 +83,8 @@ numConverer = function(data){
   return(as.data.frame(data))
 }
 ```
+
+#### Functions to calculate mid-quote of all strike prices.
 
 
 ```r
@@ -71,9 +118,10 @@ midQuote <-  function(data, ATMOptionPrice){
                         if_else(is.na(data$putSpread) | data$putSpread > 30,
                                 data$putSpline, data$putMid), 0)
   
+  # extracting the midpoints of OTM options
   data$midPoint = if_else(data$callMid == 0, data$putMid, data$callMid)
 
-    
+  # midpoint for the ATM option will be the average between call and options mid quote  
   num = which(data$strike == ATMOptionPrice)
   data$midPoint[num] = (data$putMid[num] + data$callMid[num])/2
   
@@ -82,7 +130,7 @@ midQuote <-  function(data, ATMOptionPrice){
 }
 ```
 
-
+#### Calculating sigma square (Expected Volatility)
 
 
 ```r
@@ -109,6 +157,7 @@ return(sigma)
 }
 ```
 
+#### Getting the sigma value for the near month options
 
 
 ```r
@@ -141,6 +190,7 @@ nearMonthSigma = nearMonth %>%
                   sigmaSqCalc(., r1, F1, t1, ATMOptionPrice1)
 ```
 
+#### Getting the sigma value for the next month options
 
 
 ```r
@@ -172,6 +222,22 @@ nextMonthSigma = nextMonth %>%
                   midQuote(.,ATMOptionPrice1) %>%
                   sigmaSqCalc(., r2, F2, t2, ATMOptionPrice2)
 ```
+
+#### Calculating INDIAVIX.
+
+Formula calculating INDIAVIX using Volatilities
+
+$$\sigma = \sqrt{\{T_1 \sigma_1^2\}[\frac{N_{T_2} - N_{30}]}{N_{T_2} -N_{T_1}} +\frac{N_{30} - N_{T_1}]}{N_{T_2} -N_{T_1}} \times \frac{N_{365}}{N_{30}}} $$
+
+$N_{T_1}$ -\> number of minutes to expiration of the near month options
+
+$N_{T_2}$ -\> number of minutes to expiration of the next month options
+
+$N_{30}$ -\> number of minutes in 30 days) =43200
+
+$N_{365}$ -\> number of minutes in a 365-day year
+
+$\sigma -> \frac{INDIAVIX}{100}$
 
 
 ```r
