@@ -7,9 +7,9 @@ output:
     keep_md: yes
 ---
 
-### calculating India Vix from scratch using R.
+### Calculating India Vix from scratch using R.
 
-We would be refering the [NSE Website](https://www1.nseindia.com/content/indices/white_paper_IndiaVIX.pdf) for calculating the India Vix Index.
+We would be referring to the [NSE Website](https://www1.nseindia.com/content/indices/white_paper_IndiaVIX.pdf) for calculating the India Vix Index.
 
 The formula for calculating the Expected Volatility:
 
